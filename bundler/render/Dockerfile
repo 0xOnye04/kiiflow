@@ -4,8 +4,8 @@ WORKDIR /app
 
 RUN apk add --no-cache git
 RUN git clone --depth 1 https://github.com/transeptorlabs/transeptor-bundler.git .
-RUN sed -i 's/1337: MAINNET_CONFIG,/1337: MAINNET_CONFIG,\\n    1336: MAINNET_CONFIG,/' src/gas/pre-verification-gas.ts
-RUN sed -i 's/\\[1, 31337, 1337, 11155111\\]/[1, 31337, 1337, 1336, 11155111]/' src/provider/provider-service.ts
+COPY patch-kiichain.js /tmp/patch-kiichain.js
+RUN node /tmp/patch-kiichain.js
 
 ENV NODE_ENV=production
 RUN corepack enable && corepack prepare yarn@4.7.0 --activate
@@ -17,8 +17,8 @@ WORKDIR /app
 
 RUN apk add --no-cache git
 RUN git clone --depth 1 https://github.com/transeptorlabs/transeptor-bundler.git .
-RUN sed -i 's/1337: MAINNET_CONFIG,/1337: MAINNET_CONFIG,\\n    1336: MAINNET_CONFIG,/' src/gas/pre-verification-gas.ts
-RUN sed -i 's/\\[1, 31337, 1337, 11155111\\]/[1, 31337, 1337, 1336, 11155111]/' src/provider/provider-service.ts
+COPY patch-kiichain.js /tmp/patch-kiichain.js
+RUN node /tmp/patch-kiichain.js
 
 RUN corepack enable && corepack prepare yarn@4.7.0 --activate
 RUN yarn workspaces focus --production --all
