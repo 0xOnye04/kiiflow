@@ -1,0 +1,41 @@
+{
+  "network": "kiiChainTestnet",
+  "chainId": 1336,
+  "deployer": "0xf325c997948BD684fd07A675dF7D4C836A9e65EB",
+  "entryPoint": "0xC3412374BEf9Ea5De79022454c1802A5a58fB2B3",
+  "bundlerRpcUrl": "http://localhost:4337/rpc",
+  "tokenWhitelist": "0x1e6AE144fBD6afBD140Ff450b6252AEb5088F390",
+  "oracleManager": "0xcF737B73628a5038126E0f3Bd95b8964C6d4AaC2",
+  "treasuryManager": "0xf38D24BFdBfde67EB31c374C668B700CA01690D0",
+  "stablecoinPaymaster": "0x02a7Ac6CE7540aE1D89e49d88720F20932856b6c",
+  "paymasterDepositTx": "0x6299eb3dd195e8295ca6597b5bbac090c3416d8ab9ac026adbb2a4c692f2d745",
+  "configuredFeeTokens": [
+    {
+      "symbol": "USDC",
+      "name": "USD Coin",
+      "address": "0xb72FfA8E8079365c1890948464B542E42EEC892B",
+      "decimals": 6,
+      "maxFeePerOp": "5000000",
+      "tokenPerKii": "1000000",
+      "maxStaleness": 3600,
+      "slippageBps": 500,
+      "whitelistTx": "0xf55e271040a83f7d3dbc6784e776fbfb3fbe73c89f792831c832d73856a2a642",
+      "oracleTx": "0xc2365a573a0dc926dd1734651fe259fdf5cd2d33d196f333aab8085767ad9e2b"
+    },
+    {
+      "symbol": "USDT",
+      "name": "Tether USD",
+      "address": "0x1A9992f48dE81C57D38147F3c573E84575021de6",
+      "decimals": 6,
+      "maxFeePerOp": "5000000",
+      "tokenPerKii": "1000000",
+      "maxStaleness": 3600,
+      "slippageBps": 500,
+      "whitelistTx": "0x1f5f4c77f7a4d225c370551ea6b1c2d7b81753f1cb8c3eb3529180a878823253",
+      "oracleTx": "0x4cdf4485e0b1a0110e5742249c94af9817e8770cba5212139d1d11eb441b0f1c"
+    }
+  ],
+  "note": "Paymaster configured with real KiiDex testnet USDC/USDT fee tokens.",
+  "timestamp": "2026-05-23T07:58:03.740Z",
+  "updatedAt": "2026-05-25T13:51:04.584Z"
+}

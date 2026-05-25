@@ -1,0 +1,41 @@
+{
+  "network": "kiiChainTestnet",
+  "chainId": 1336,
+  "deployer": "0xf325c997948BD684fd07A675dF7D4C836A9e65EB",
+  "lockVault": "0x6cA8c9450BA78e18da654d6774eA791050CEeEd4",
+  "supportedTokens": [
+    {
+      "symbol": "WKII",
+      "address": "0xd51e7187e54a4A22D790f8bbDdd9B54b891Bc920",
+      "txHash": "0xb5a4d8f0e610dd10251e2ebde9ff68135f6981e144396c63ce549d9508a640bf"
+    },
+    {
+      "symbol": "USDC",
+      "address": "0xb72FfA8E8079365c1890948464B542E42EEC892B",
+      "txHash": "0xba14de4f5973a224438736f8110659f34453651b065d659d4137cc18f2fe6e23"
+    },
+    {
+      "symbol": "USDT",
+      "address": "0x1A9992f48dE81C57D38147F3c573E84575021de6",
+      "txHash": "0x60e7098af8a8617f90fbdaa4d56f15cfb02774e34cbf391c2729c2beaadb1262"
+    }
+  ],
+  "rewardRates": [
+    {
+      "lockDays": 30,
+      "rewardBps": 240,
+      "txHash": "0xf757f81393f272435a558e99e3f884085ce71f651e7c31bfc4a7f06f81ea8f6b"
+    },
+    {
+      "lockDays": 90,
+      "rewardBps": 760,
+      "txHash": "0xef1153e1a4ca577e8d5512cbb37f4e3d02672df63394e68950100789c910fc2f"
+    },
+    {
+      "lockDays": 180,
+      "rewardBps": 1380,
+      "txHash": "0xe7cfd0d4283b3d5ce59a7e55013ac3132042b2f77e7bf47c7ce65f43b20a18cb"
+    }
+  ],
+  "timestamp": "2026-05-25T20:43:31.073Z"
+}

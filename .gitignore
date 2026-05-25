@@ -1,0 +1,42 @@
+# dependencies
+node_modules/
+**/node_modules/
+
+# next.js
+.next/
+out/
+
+# hardhat / generated artifacts
+cache/
+artifacts/
+typechain-types/
+
+# environment / secrets
+.env
+.env.*
+!.env.example
+bundler/.env
+bundler/.env.*
+!bundler/.env.example
+bundler/source/transeptor-bundler/.env
+bundler/source/transeptor-bundler/.env.*
+
+# logs
+*.log
+logs/
+bundler/source/*.log
+bundler/source/transeptor-bundler/
+bundler/source/transeptor-bundler/logs/
+
+# nested git metadata from vendored bundler source
+bundler/source/transeptor-bundler/.git/
+
+# package manager caches
+.yarn/cache/
+.yarn/unplugged/
+.yarn/install-state.gz
+
+# system / editor
+.DS_Store
+Thumbs.db
+.vscode/

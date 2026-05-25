@@ -1,0 +1,22 @@
+services:
+  transeptor:
+    image: transeptorlabs/bundler:latest
+    container_name: kiiflow-transeptor
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${BUNDLER_PORT:-4337}:4337"
+    command:
+      - "--httpApi"
+      - "web3,eth,debug"
+      - "--txMode"
+      - "base"
+      - "--port"
+      - "4337"
+      - "--minBalance"
+      - "${BUNDLER_MIN_BALANCE:-0.01}"
+      - "--network"
+      - "${KII_RPC_URL:-https://json-rpc.uno.sentry.testnet.v3.kiivalidator.com/}"
+      - "--auto"
+      - "--unsafe"
