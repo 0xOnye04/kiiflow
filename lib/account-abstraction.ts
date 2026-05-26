@@ -17,6 +17,11 @@ export const PAYMASTER_ADDRESS = process.env.NEXT_PUBLIC_PAYMASTER_ADDRESS || ""
 export const TREASURY_MANAGER_ADDRESS = process.env.NEXT_PUBLIC_TREASURY_MANAGER_ADDRESS || "";
 export const ACCOUNT_FACTORY_ADDRESS = process.env.NEXT_PUBLIC_ACCOUNT_FACTORY_ADDRESS || "";
 export const BUNDLER_RPC_URL = process.env.NEXT_PUBLIC_BUNDLER_RPC_URL || "";
+const configuredUserOperationTtl = Number(process.env.NEXT_PUBLIC_USER_OPERATION_TTL_SECONDS ?? 86_400);
+const USER_OPERATION_TTL_SECONDS =
+  Number.isFinite(configuredUserOperationTtl) && configuredUserOperationTtl > 600
+    ? configuredUserOperationTtl
+    : 86_400;
 
 const ACCOUNT_FACTORY_ABI = [
   "function createAccount(address owner,bytes32 salt) returns (address)",
@@ -269,7 +274,7 @@ export async function buildSignedUserOperation({
   unsigned.paymasterAndData = encodePaymasterAndData(PAYMASTER_ADDRESS, {
     feeToken: feeToken.address,
     maxFeeToken: mode === PaymasterFeeMode.TokenPay ? fallbackMaxFeeToken : BigInt(0),
-    validUntil: Math.floor(Date.now() / 1000) + 600,
+    validUntil: Math.floor(Date.now() / 1000) + USER_OPERATION_TTL_SECONDS,
     validAfter: 0,
     mode,
     paymasterVerificationGasLimit: gas.paymasterVerificationGasLimit,
