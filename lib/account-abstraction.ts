@@ -28,11 +28,11 @@ const ACCOUNT_ABI = [
   "function executeBatch(tuple(address target,uint256 value,bytes data)[] calls)"
 ];
 
-const DEFAULT_VERIFICATION_GAS = BigInt(420_000);
+const DEFAULT_VERIFICATION_GAS = BigInt(3_000_000);
 const DEFAULT_CALL_GAS = BigInt(220_000);
-const DEFAULT_PRE_VERIFICATION_GAS = BigInt(80_000);
-const DEFAULT_PAYMASTER_VERIFICATION_GAS = BigInt(180_000);
-const DEFAULT_PAYMASTER_POST_OP_GAS = BigInt(120_000);
+const DEFAULT_PRE_VERIFICATION_GAS = BigInt(120_000);
+const DEFAULT_PAYMASTER_VERIFICATION_GAS = BigInt(300_000);
+const DEFAULT_PAYMASTER_POST_OP_GAS = BigInt(180_000);
 
 export type UserOperationReceipt = {
   userOpHash: string;
@@ -81,6 +81,25 @@ export async function getAccountInitCode(owner: string, provider: ethers.Provide
     smartAccount,
     initCode: ethers.concat([ACCOUNT_FACTORY_ADDRESS, factoryData])
   };
+}
+
+export async function ensureSmartAccountDeployed(owner: string, signer: ethers.Signer) {
+  if (!signer.provider) {
+    throw new Error("Wallet provider unavailable.");
+  }
+
+  const smartAccount = await getSmartAccountAddress(owner, signer.provider);
+  const code = await signer.provider.getCode(smartAccount);
+
+  if (code && code !== "0x") {
+    return { smartAccount, txHash: "" };
+  }
+
+  const factory = new ethers.Contract(ACCOUNT_FACTORY_ADDRESS, ACCOUNT_FACTORY_ABI, signer);
+  const tx = await factory.createAccount(owner, getAccountSalt(owner));
+  await tx.wait();
+
+  return { smartAccount, txHash: tx.hash as string };
 }
 
 export async function getSmartAccountTokenState({
@@ -166,7 +185,9 @@ export async function bundlerRpc(method: string, params: unknown[]) {
 
   const payload = await response.json();
   if (!response.ok || payload.error) {
-    throw new Error(payload.error?.message ?? `Bundler RPC ${method} failed with HTTP ${response.status}`);
+    const message = payload.error?.message ?? `Bundler RPC ${method} failed with HTTP ${response.status}`;
+    const details = payload.error?.data ? ` ${typeof payload.error.data === "string" ? payload.error.data : JSON.stringify(payload.error.data)}` : "";
+    throw new Error(`${message}${details}`);
   }
 
   return payload.result;
