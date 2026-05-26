@@ -1,0 +1,9 @@
+{
+  "network": "kiiChainTestnet",
+  "chainId": 1336,
+  "deployer": "0xf325c997948BD684fd07A675dF7D4C836A9e65EB",
+  "entryPoint": "0xC3412374BEf9Ea5De79022454c1802A5a58fB2B3",
+  "accountFactory": "0xE11c44438f0d58797DB7fA0b4063715703A1be5d",
+  "txHash": "0xbf99cfdaf95b421d118afa8f27d3101ca3d8650f3c95dc9ea5faf4188dcf7cc8",
+  "timestamp": "2026-05-26T14:25:22.283Z"
+}

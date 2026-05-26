@@ -17,10 +17,10 @@
       "decimals": 6,
       "maxFeePerOp": "5000000",
       "tokenPerKii": "1000000",
-      "maxStaleness": 3600,
+      "maxStaleness": 2592000,
       "slippageBps": 500,
-      "whitelistTx": "0xf55e271040a83f7d3dbc6784e776fbfb3fbe73c89f792831c832d73856a2a642",
-      "oracleTx": "0xc2365a573a0dc926dd1734651fe259fdf5cd2d33d196f333aab8085767ad9e2b"
+      "whitelistTx": "0xc1534229e1fa81ef93d88eb2ba66e16f714d5b98c015899475201ab4077b624e",
+      "oracleTx": "0x7000553771875370e17acfe295a1df030018eefa5354bcc9a7c4e33510b6e37a"
     },
     {
       "symbol": "USDT",
@@ -29,13 +29,13 @@
       "decimals": 6,
       "maxFeePerOp": "5000000",
       "tokenPerKii": "1000000",
-      "maxStaleness": 3600,
+      "maxStaleness": 2592000,
       "slippageBps": 500,
-      "whitelistTx": "0x1f5f4c77f7a4d225c370551ea6b1c2d7b81753f1cb8c3eb3529180a878823253",
-      "oracleTx": "0x4cdf4485e0b1a0110e5742249c94af9817e8770cba5212139d1d11eb441b0f1c"
+      "whitelistTx": "0x3c55b57b2e30a8f7128e4e0f763e337c7d83a81c432d6f1ae256a8e5481f161d",
+      "oracleTx": "0xf52ab8874074d1231939dbf694ce0cf14a5f8ea607265ae374db7e4d426eb7a1"
     }
   ],
   "note": "Paymaster configured with real KiiDex testnet USDC/USDT fee tokens.",
   "timestamp": "2026-05-23T07:58:03.740Z",
-  "updatedAt": "2026-05-25T13:51:04.584Z"
+  "updatedAt": "2026-05-26T14:18:25.110Z"
 }

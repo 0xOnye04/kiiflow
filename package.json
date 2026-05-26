@@ -11,6 +11,7 @@
     "compile": "hardhat compile",
     "deploy:entrypoint:kii": "hardhat run --network kiiChainTestnet scripts/deploy-entrypoint.ts",
     "deploy:paymaster:kii": "hardhat run --network kiiChainTestnet scripts/deploy-paymaster-core.ts",
+    "deploy:account-factory:kii": "hardhat run --network kiiChainTestnet scripts/deploy-account-factory.ts",
     "deploy:lock-vault:kii": "hardhat run --network kiiChainTestnet scripts/deploy-lock-vault.ts",
     "configure:paymaster:tokens": "hardhat run --network kiiChainTestnet scripts/configure-paymaster-tokens.ts",
     "deploy:kii": "hardhat run --network kiiChainTestnet scripts/deploy.ts",
