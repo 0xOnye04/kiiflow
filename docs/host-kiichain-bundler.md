@@ -35,9 +35,13 @@ TRANSEPTOR_ENTRYPOINT_ADDRESS=0xC3412374BEf9Ea5De79022454c1802A5a58fB2B3
 TRANSEPTOR_BENEFICIARY=YOUR_FUNDED_BUNDLER_WALLET_ADDRESS
 TRANSEPTOR_MNEMONIC=YOUR_BUNDLER_WALLET_MNEMONIC
 TRANSEPTOR_LOG_LEVEL=info
+TRANSEPTOR_RECEIPT_LOOKBACK_BLOCKS=9000
+TRANSEPTOR_MAX_LOG_BLOCK_RANGE=9000
 ```
 
 Do not use your main wallet. Use a dedicated testnet bundler wallet funded with KII.
+
+KiiChain RPC limits `eth_getLogs` requests to a maximum 10,000-block range. The receipt lookup variables above keep the bundler compatible by scanning recent EntryPoint events in safe chunks.
 
 6. Deploy the service.
 
