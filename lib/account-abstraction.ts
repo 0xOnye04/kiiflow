@@ -1,5 +1,7 @@
 import { ethers } from "ethers";
-import { ERC20_ABI, Erc20Token, formatTokenAmount } from "./chain-transactions";
+import { LOCK_VAULT_ADDRESS } from "./contract-helpers";
+import { KII_DEX_CONTRACTS } from "./kiichain";
+import { ERC20_ABI, Erc20Token, SWAP_ROUTER_02_ABI, formatTokenAmount } from "./chain-transactions";
 import {
   PaymasterFeeMode,
   PackedUserOperation,
@@ -251,6 +253,47 @@ export async function buildSignedUserOperation({
   const accountInterface = new ethers.Interface(ACCOUNT_ABI);
   const callData = accountInterface.encodeFunctionData("execute", [target, value, data]);
 
+  return buildSignedAccountCallUserOperation({
+    owner,
+    provider,
+    accountInfo,
+    gas,
+    callData,
+    target,
+    data,
+    value,
+    feeToken,
+    mode,
+    maxFeeToken
+  });
+}
+
+async function buildSignedAccountCallUserOperation({
+  owner,
+  provider,
+  accountInfo,
+  gas,
+  callData,
+  target,
+  data,
+  value,
+  feeToken,
+  mode,
+  maxFeeToken
+}: {
+  owner: ethers.Signer;
+  provider: ethers.Provider;
+  accountInfo: { smartAccount: string; initCode: string };
+  gas: Awaited<ReturnType<typeof resolveUserOpGas>>;
+  callData: string;
+  target: string;
+  data: string;
+  value: bigint;
+  feeToken: Erc20Token;
+  mode: PaymasterFeeMode;
+  maxFeeToken?: bigint;
+}) {
+
   const unsigned = await buildEntryPointUserOperation({
     account: accountInfo.smartAccount,
     target,
@@ -333,6 +376,110 @@ export async function buildStablecoinTransferUserOperation({
     provider,
     target: token.address,
     data,
+    feeToken,
+    mode: PaymasterFeeMode.TokenPay,
+    maxFeeToken: ethers.parseUnits("5", feeToken.decimals)
+  });
+}
+
+export async function buildStablecoinSwapUserOperation({
+  owner,
+  provider,
+  fromToken,
+  toToken,
+  feeToken,
+  amountIn,
+  amountOutMin,
+  poolFee
+}: {
+  owner: ethers.Signer;
+  provider: ethers.Provider;
+  fromToken: Erc20Token;
+  toToken: Erc20Token;
+  feeToken: Erc20Token;
+  amountIn: bigint;
+  amountOutMin: bigint;
+  poolFee: number;
+}) {
+  const ownerAddress = await owner.getAddress();
+  const accountInfo = await getAccountInitCode(ownerAddress, provider);
+  const gas = await resolveUserOpGas(provider);
+  const accountInterface = new ethers.Interface(ACCOUNT_ABI);
+  const tokenInterface = new ethers.Interface(ERC20_ABI);
+  const routerInterface = new ethers.Interface(SWAP_ROUTER_02_ABI);
+  const approveRouterData = tokenInterface.encodeFunctionData("approve", [KII_DEX_CONTRACTS.swapRouter02, amountIn]);
+  const swapData = routerInterface.encodeFunctionData("exactInputSingle", [{
+    tokenIn: fromToken.address,
+    tokenOut: toToken.address,
+    fee: poolFee,
+    recipient: accountInfo.smartAccount,
+    amountIn,
+    amountOutMinimum: amountOutMin,
+    sqrtPriceLimitX96: 0
+  }]);
+  const callData = accountInterface.encodeFunctionData("executeBatch", [[
+    { target: fromToken.address, value: BigInt(0), data: approveRouterData },
+    { target: KII_DEX_CONTRACTS.swapRouter02, value: BigInt(0), data: swapData }
+  ]]);
+
+  return buildSignedAccountCallUserOperation({
+    owner,
+    provider,
+    accountInfo,
+    gas: { ...gas, callGasLimit: BigInt(520_000) },
+    callData,
+    target: KII_DEX_CONTRACTS.swapRouter02,
+    data: swapData,
+    value: BigInt(0),
+    feeToken,
+    mode: PaymasterFeeMode.TokenPay,
+    maxFeeToken: ethers.parseUnits("5", feeToken.decimals)
+  });
+}
+
+export async function buildStablecoinLockUserOperation({
+  owner,
+  provider,
+  token,
+  feeToken,
+  amount,
+  lockDays
+}: {
+  owner: ethers.Signer;
+  provider: ethers.Provider;
+  token: Erc20Token;
+  feeToken: Erc20Token;
+  amount: bigint;
+  lockDays: number;
+}) {
+  if (!ethers.isAddress(LOCK_VAULT_ADDRESS)) {
+    throw new Error("LockVault address is not configured.");
+  }
+
+  const ownerAddress = await owner.getAddress();
+  const accountInfo = await getAccountInitCode(ownerAddress, provider);
+  const gas = await resolveUserOpGas(provider);
+  const accountInterface = new ethers.Interface(ACCOUNT_ABI);
+  const tokenInterface = new ethers.Interface(ERC20_ABI);
+  const vaultInterface = new ethers.Interface([
+    "function lock(address token,uint256 amount,uint256 lockDays) returns (uint256)"
+  ]);
+  const approveVaultData = tokenInterface.encodeFunctionData("approve", [LOCK_VAULT_ADDRESS, amount]);
+  const lockData = vaultInterface.encodeFunctionData("lock", [token.address, amount, lockDays]);
+  const callData = accountInterface.encodeFunctionData("executeBatch", [[
+    { target: token.address, value: BigInt(0), data: approveVaultData },
+    { target: LOCK_VAULT_ADDRESS, value: BigInt(0), data: lockData }
+  ]]);
+
+  return buildSignedAccountCallUserOperation({
+    owner,
+    provider,
+    accountInfo,
+    gas: { ...gas, callGasLimit: BigInt(460_000) },
+    callData,
+    target: LOCK_VAULT_ADDRESS,
+    data: lockData,
+    value: BigInt(0),
     feeToken,
     mode: PaymasterFeeMode.TokenPay,
     maxFeeToken: ethers.parseUnits("5", feeToken.decimals)

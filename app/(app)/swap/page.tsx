@@ -12,6 +12,15 @@ import { WalletConnectButton } from "@/components/wallet-connect-button";
 import { NetworkSwitchButton } from "@/components/network-switch-button";
 import { getConnectedKiiAccount, getInjectedEthereumProvider } from "@/lib/kii-wallet";
 import {
+  buildSponsoredApprovalUserOperation,
+  buildStablecoinSwapUserOperation,
+  getSmartAccountAddress,
+  isAccountAbstractionConfigured,
+  sendUserOperation,
+  waitForUserOperationReceipt
+} from "@/lib/account-abstraction";
+import {
+  Erc20Token,
   SUPPORTED_TOKENS,
   SupportedToken,
   executeKiiDexSwapWithNative,
@@ -20,7 +29,8 @@ import {
   getKiiSigner,
   getWalletBalances,
   parseAmount,
-  quoteKiiDexSwapWithNative
+  quoteKiiDexSwapWithNative,
+  requireErc20Token
 } from "@/lib/chain-transactions";
 
 type WalletState = {
@@ -39,17 +49,26 @@ type SwapEstimate = {
 
 export default function SwapPage() {
   const swapTokens = useMemo(() => [...SUPPORTED_TOKENS], []);
+  const feeTokens = useMemo(
+    () => swapTokens.filter((token): token is Erc20Token => !token.isNative && ["USDC", "USDT"].includes(token.symbol)),
+    [swapTokens]
+  );
   const [wallet, setWallet] = useState<WalletState | null>(null);
   const [balances, setBalances] = useState<Record<string, string>>({});
   const [selectedFrom, setSelectedFrom] = useState<SupportedToken["id"]>("KII");
   const [selectedTo, setSelectedTo] = useState<SupportedToken["id"]>("USDC");
+  const [selectedFeeTokenId, setSelectedFeeTokenId] = useState<Erc20Token["id"]>("USDC");
   const [fromAmount, setFromAmount] = useState("1");
   const [estimateData, setEstimateData] = useState<SwapEstimate | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isPreparingGas, setIsPreparingGas] = useState(false);
+  const [isAaSwapping, setIsAaSwapping] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [userOpHash, setUserOpHash] = useState<string | null>(null);
   const [approvalHash, setApprovalHash] = useState<string | null>(null);
+  const [smartAccount, setSmartAccount] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fromToken = useMemo(
@@ -63,6 +82,10 @@ export default function SwapPage() {
   );
 
   const isConnected = Boolean(wallet?.address && wallet.isKiiChain);
+  const feeToken = useMemo(
+    () => feeTokens.find((token) => token.id === selectedFeeTokenId) ?? feeTokens[0],
+    [feeTokens, selectedFeeTokenId]
+  );
 
   const refreshWallet = useCallback(async () => {
     try {
@@ -76,6 +99,10 @@ export default function SwapPage() {
       setWallet({ address: account.address, isKiiChain: account.isKiiChain });
 
       if (account.isKiiChain) {
+        const provider = await getBrowserProvider();
+        if (isAccountAbstractionConfigured()) {
+          setSmartAccount(await getSmartAccountAddress(account.address, provider));
+        }
         const walletBalances = await getWalletBalances(account.address);
         setBalances(
           {
@@ -90,6 +117,7 @@ export default function SwapPage() {
         );
       } else {
         setBalances({});
+        setSmartAccount(null);
       }
     } catch (walletError) {
       setError(walletError instanceof Error ? walletError.message : String(walletError));
@@ -201,6 +229,77 @@ export default function SwapPage() {
     }
   };
 
+  const handlePrepareStableGas = async () => {
+    setError(null);
+    setIsPreparingGas(true);
+
+    try {
+      if (!isAccountAbstractionConfigured()) {
+        throw new Error("ERC-4337 environment variables are not configured.");
+      }
+
+      const signer = await getKiiSigner();
+      const provider = await getBrowserProvider();
+      const { op, smartAccount: accountAddress } = await buildSponsoredApprovalUserOperation({
+        owner: signer,
+        provider,
+        feeToken
+      });
+      setSmartAccount(accountAddress);
+      const hash = await sendUserOperation(op);
+      setUserOpHash(hash);
+      await waitForUserOperationReceipt(hash);
+    } catch (prepareError) {
+      setError(prepareError instanceof Error ? prepareError.message : String(prepareError));
+    } finally {
+      setIsPreparingGas(false);
+    }
+  };
+
+  const handleStableGasSwap = async () => {
+    if (!estimateData) {
+      return;
+    }
+
+    setError(null);
+    setIsAaSwapping(true);
+
+    try {
+      if (!isAccountAbstractionConfigured()) {
+        throw new Error("ERC-4337 environment variables are not configured.");
+      }
+
+      if (fromToken.isNative || toToken.isNative) {
+        throw new Error("Stablecoin gas swaps use the smart account ERC20 flow. Select WKII instead of native KII.");
+      }
+
+      const signer = await getKiiSigner();
+      const provider = await getBrowserProvider();
+      const amountIn = parseAmount(fromAmount, fromToken.decimals);
+      const { op, smartAccount: accountAddress } = await buildStablecoinSwapUserOperation({
+        owner: signer,
+        provider,
+        fromToken: requireErc20Token(fromToken),
+        toToken: requireErc20Token(toToken),
+        feeToken,
+        amountIn,
+        amountOutMin: estimateData.amountOutMin,
+        poolFee: estimateData.poolFee
+      });
+      setSmartAccount(accountAddress);
+      const hash = await sendUserOperation(op);
+      setUserOpHash(hash);
+      const receipt = await waitForUserOperationReceipt(hash);
+      setTxHash(receipt?.receipt?.transactionHash ?? hash);
+      setModalOpen(false);
+      await refreshWallet();
+    } catch (swapError) {
+      setError(swapError instanceof Error ? swapError.message : String(swapError));
+    } finally {
+      setIsAaSwapping(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -289,6 +388,34 @@ export default function SwapPage() {
                 <span>Network fee</span>
                 <span>{estimateData ? `${estimateData.feeKii} KII` : "Quoted during preview"}</span>
               </div>
+              <div className="flex justify-between py-2 text-muted-foreground">
+                <span>Stable gas</span>
+                <span>{isAccountAbstractionConfigured() ? `${feeToken.symbol} via smart account` : "Not configured"}</span>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 text-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-medium">ERC-4337 stable gas</div>
+                  <div className="text-xs text-muted-foreground">
+                    {smartAccount ? `Smart account ${smartAccount.slice(0, 6)}...${smartAccount.slice(-4)}` : "Connect to derive your smart account"}
+                  </div>
+                </div>
+                <select
+                  value={selectedFeeTokenId}
+                  onChange={(event) => setSelectedFeeTokenId(event.target.value as Erc20Token["id"])}
+                  className="h-10 rounded-md border border-white/10 bg-slate-950 px-3 text-sm text-slate-100"
+                >
+                  {feeTokens.map((token) => (
+                    <option key={token.id} value={token.id}>{token.symbol}</option>
+                  ))}
+                </select>
+              </div>
+              <Button variant="secondary" className="w-full gap-2" onClick={handlePrepareStableGas} disabled={isPreparingGas || !isConnected || !isAccountAbstractionConfigured()}>
+                {isPreparingGas ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                Prepare stable gas
+              </Button>
             </div>
 
             {error && (
@@ -332,11 +459,12 @@ export default function SwapPage() {
         </Card>
       </div>
 
-      {(txHash || approvalHash) && (
+      {(txHash || approvalHash || userOpHash) && (
         <Card className="mt-6">
           <CardContent className="space-y-2 text-sm text-slate-200">
             {approvalHash && <div className="break-all">Approval hash: {approvalHash}</div>}
             {txHash && <div className="break-all">Swap hash: {txHash}</div>}
+            {userOpHash && <div className="break-all">UserOp hash: {userOpHash}</div>}
           </CardContent>
         </Card>
       )}
@@ -380,6 +508,10 @@ export default function SwapPage() {
                 <Button className="w-full sm:w-auto gap-2" onClick={handleConfirmSwap} disabled={isConfirming}>
                   {isConfirming ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                   Confirm swap
+                </Button>
+                <Button className="w-full sm:w-auto gap-2" onClick={handleStableGasSwap} disabled={isAaSwapping || fromToken.isNative || toToken.isNative}>
+                  {isAaSwapping ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                  Swap with {feeToken.symbol} gas
                 </Button>
               </div>
             </div>

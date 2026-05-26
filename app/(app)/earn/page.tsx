@@ -14,6 +14,14 @@ import { WalletConnectButton } from "@/components/wallet-connect-button";
 import { getLockVaultContract, LOCK_VAULT_ADDRESS } from "@/lib/contract-helpers";
 import { getConnectedKiiAccount, getInjectedEthereumProvider } from "@/lib/kii-wallet";
 import {
+  buildSponsoredApprovalUserOperation,
+  buildStablecoinLockUserOperation,
+  getSmartAccountAddress,
+  isAccountAbstractionConfigured,
+  sendUserOperation,
+  waitForUserOperationReceipt
+} from "@/lib/account-abstraction";
+import {
   Erc20Token,
   SUPPORTED_TOKENS,
   approveIfNeeded,
@@ -55,17 +63,30 @@ export default function EarnPage() {
   const [balances, setBalances] = useState<Record<string, string>>({});
   const [positions, setPositions] = useState<VaultPosition[]>([]);
   const [selectedTokenId, setSelectedTokenId] = useState<Erc20Token["id"]>("USDC");
+  const [selectedFeeTokenId, setSelectedFeeTokenId] = useState<Erc20Token["id"]>("USDC");
   const [amount, setAmount] = useState("10");
   const [selectedDays, setSelectedDays] = useState(90);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [userOpHash, setUserOpHash] = useState<string | null>(null);
+  const [smartAccount, setSmartAccount] = useState<string | null>(null);
   const [createdPositionId, setCreatedPositionId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLocking, setIsLocking] = useState(false);
+  const [isPreparingGas, setIsPreparingGas] = useState(false);
+  const [isAaLocking, setIsAaLocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedToken = useMemo(
     () => lockTokens.find((token) => token.id === selectedTokenId) ?? lockTokens[0],
     [lockTokens, selectedTokenId]
+  );
+  const feeTokens = useMemo(
+    () => lockTokens.filter((token) => ["USDC", "USDT"].includes(token.symbol)),
+    [lockTokens]
+  );
+  const feeToken = useMemo(
+    () => feeTokens.find((token) => token.id === selectedFeeTokenId) ?? feeTokens[0],
+    [feeTokens, selectedFeeTokenId]
   );
   const selectedOption = LOCK_OPTIONS.find((option) => option.days === selectedDays) ?? LOCK_OPTIONS[1];
   const amountIn = parseAmount(amount, selectedToken.decimals);
@@ -89,10 +110,14 @@ export default function EarnPage() {
       setWallet({ address: account.address, isKiiChain: account.isKiiChain });
       if (!account.isKiiChain || !isVaultConfigured) {
         setPositions([]);
+        setSmartAccount(null);
         return;
       }
 
       const provider = await getBrowserProvider();
+      if (isAccountAbstractionConfigured()) {
+        setSmartAccount(await getSmartAccountAddress(account.address, provider));
+      }
       const walletBalances = await getWalletBalances(account.address);
       setBalances(
         Object.fromEntries(
@@ -212,6 +237,71 @@ export default function EarnPage() {
     }
   };
 
+  const handlePrepareStableGas = async () => {
+    setError(null);
+    setIsPreparingGas(true);
+
+    try {
+      if (!isAccountAbstractionConfigured()) {
+        throw new Error("ERC-4337 environment variables are not configured.");
+      }
+
+      const signer = await getKiiSigner();
+      const provider = await getBrowserProvider();
+      const { op, smartAccount: accountAddress } = await buildSponsoredApprovalUserOperation({
+        owner: signer,
+        provider,
+        feeToken
+      });
+      setSmartAccount(accountAddress);
+      const hash = await sendUserOperation(op);
+      setUserOpHash(hash);
+      await waitForUserOperationReceipt(hash);
+    } catch (prepareError) {
+      setError(prepareError instanceof Error ? prepareError.message : String(prepareError));
+    } finally {
+      setIsPreparingGas(false);
+    }
+  };
+
+  const handleStableGasLock = async () => {
+    setError(null);
+    setTxHash(null);
+    setCreatedPositionId(null);
+    setIsAaLocking(true);
+
+    try {
+      if (!isAccountAbstractionConfigured()) {
+        throw new Error("ERC-4337 environment variables are not configured.");
+      }
+
+      if (amountIn <= BigInt(0)) {
+        throw new Error("Enter an amount greater than zero.");
+      }
+
+      const signer = await getKiiSigner();
+      const provider = await getBrowserProvider();
+      const { op, smartAccount: accountAddress } = await buildStablecoinLockUserOperation({
+        owner: signer,
+        provider,
+        token: selectedToken,
+        feeToken,
+        amount: amountIn,
+        lockDays: selectedDays
+      });
+      setSmartAccount(accountAddress);
+      const hash = await sendUserOperation(op);
+      setUserOpHash(hash);
+      const receipt = await waitForUserOperationReceipt(hash);
+      setTxHash(receipt?.receipt?.transactionHash ?? hash);
+      await refreshOnChainState();
+    } catch (lockError) {
+      setError(lockError instanceof Error ? lockError.message : String(lockError));
+    } finally {
+      setIsAaLocking(false);
+    }
+  };
+
   const activePositions = positions.filter((position) => !position.withdrawn);
   const totalLockedLabel = activePositions.length
     ? `${activePositions.length} on-chain position${activePositions.length === 1 ? "" : "s"}`
@@ -321,6 +411,36 @@ export default function EarnPage() {
               </div>
             </div>
 
+            <div className="rounded-lg border border-white/10 bg-white/[0.045] p-4 text-sm">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-medium">ERC-4337 stable gas</div>
+                  <div className="text-xs text-muted-foreground">
+                    {smartAccount ? `Smart account ${smartAccount.slice(0, 6)}...${smartAccount.slice(-4)}` : "Connect to derive your smart account"}
+                  </div>
+                </div>
+                <select
+                  value={selectedFeeTokenId}
+                  onChange={(event) => setSelectedFeeTokenId(event.target.value as Erc20Token["id"])}
+                  className="h-10 rounded-md border border-white/10 bg-slate-950 px-3 text-sm text-slate-100"
+                >
+                  {feeTokens.map((token) => (
+                    <option key={token.id} value={token.id}>{token.symbol}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button variant="secondary" className="gap-2" onClick={handlePrepareStableGas} disabled={isPreparingGas || !isConnected || !isAccountAbstractionConfigured()}>
+                  {isPreparingGas ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUpRight className="h-4 w-4" />}
+                  Prepare gas
+                </Button>
+                <Button className="gap-2" onClick={handleStableGasLock} disabled={isAaLocking || !isConnected || !isVaultConfigured || !isAccountAbstractionConfigured()}>
+                  {isAaLocking ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
+                  Lock with {feeToken.symbol} gas
+                </Button>
+              </div>
+            </div>
+
             {error && (
               <div className="rounded-lg border border-rose-400/20 bg-rose-950/30 p-4 text-sm text-rose-100">
                 {error}
@@ -330,7 +450,14 @@ export default function EarnPage() {
             {txHash && (
               <div className="rounded-lg border border-teal-300/20 bg-teal-950/20 p-4 text-sm text-teal-100">
                 <div className="break-all">Lock tx: {txHash}</div>
+                {userOpHash && <div className="mt-1 break-all">UserOp hash: {userOpHash}</div>}
                 {createdPositionId != null && <div className="mt-1">Position #{createdPositionId}</div>}
+              </div>
+            )}
+
+            {userOpHash && !txHash && (
+              <div className="rounded-lg border border-teal-300/20 bg-teal-950/20 p-4 text-sm text-teal-100">
+                <div className="break-all">UserOp hash: {userOpHash}</div>
               </div>
             )}
 
