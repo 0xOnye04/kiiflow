@@ -7,6 +7,8 @@ import {
   encodePaymasterAndData,
   estimateNativeMaxCost,
   packUint128Pair,
+  unpackAccountGasLimits,
+  unpackGasFees,
   withUserOperationSignature
 } from "./paymaster-sdk";
 
@@ -122,17 +124,33 @@ export async function resolveUserOpGas(provider: ethers.Provider) {
 }
 
 function toRpcUserOperation(op: PackedUserOperation) {
-  return {
+  const { verificationGasLimit, callGasLimit } = unpackAccountGasLimits(op.accountGasLimits);
+  const { maxPriorityFeePerGas, maxFeePerGas } = unpackGasFees(op.gasFees);
+  const rpcOp: Record<string, string> = {
     sender: op.sender,
     nonce: ethers.toBeHex(op.nonce),
-    initCode: op.initCode,
     callData: op.callData,
-    accountGasLimits: op.accountGasLimits,
+    callGasLimit: ethers.toBeHex(callGasLimit),
+    verificationGasLimit: ethers.toBeHex(verificationGasLimit),
     preVerificationGas: ethers.toBeHex(op.preVerificationGas),
-    gasFees: op.gasFees,
-    paymasterAndData: op.paymasterAndData,
+    maxFeePerGas: ethers.toBeHex(maxFeePerGas),
+    maxPriorityFeePerGas: ethers.toBeHex(maxPriorityFeePerGas),
     signature: op.signature
   };
+
+  if (op.initCode && op.initCode !== "0x") {
+    rpcOp.factory = ethers.getAddress(`0x${op.initCode.slice(2, 42)}`);
+    rpcOp.factoryData = `0x${op.initCode.slice(42)}`;
+  }
+
+  if (op.paymasterAndData && op.paymasterAndData !== "0x") {
+    rpcOp.paymaster = ethers.getAddress(`0x${op.paymasterAndData.slice(2, 42)}`);
+    rpcOp.paymasterVerificationGasLimit = ethers.toBeHex(BigInt(`0x${op.paymasterAndData.slice(42, 74)}`));
+    rpcOp.paymasterPostOpGasLimit = ethers.toBeHex(BigInt(`0x${op.paymasterAndData.slice(74, 106)}`));
+    rpcOp.paymasterData = `0x${op.paymasterAndData.slice(106)}`;
+  }
+
+  return rpcOp;
 }
 
 export async function bundlerRpc(method: string, params: unknown[]) {
