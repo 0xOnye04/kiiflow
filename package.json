@@ -14,6 +14,8 @@
     "deploy:account-factory:kii": "hardhat run --network kiiChainTestnet scripts/deploy-account-factory.ts",
     "deploy:lock-vault:kii": "hardhat run --network kiiChainTestnet scripts/deploy-lock-vault.ts",
     "configure:paymaster:tokens": "hardhat run --network kiiChainTestnet scripts/configure-paymaster-tokens.ts",
+    "paymaster:topup": "hardhat run --network kiiChainTestnet scripts/top-up-paymaster.ts",
+    "paymaster:check": "hardhat run --network kiiChainTestnet scripts/check-paymaster-readiness.ts",
     "deploy:kii": "hardhat run --network kiiChainTestnet scripts/deploy.ts",
     "bundler:init": "ts-node scripts/init-bundler-env.ts",
     "bundler:up": "docker compose --env-file bundler/.env -f bundler/docker-compose.yml up -d",
